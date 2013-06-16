@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
@@ -33,7 +34,10 @@ import org.elasticsearch.script.javascript.support.NativeMap;
 import org.elasticsearch.script.javascript.support.ScriptValueConverter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.mozilla.javascript.*;
+import org.mozilla.javascript.tools.shell.Global;
 
+import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -41,258 +45,287 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  *
  */
-public class JavaScriptScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public class JavaScriptScriptEngineService extends AbstractComponent implements
+		ScriptEngineService {
 
-    private final AtomicLong counter = new AtomicLong();
+	private final AtomicLong counter = new AtomicLong();
 
-    private static WrapFactory wrapFactory = new CustomWrapFactory();
+	private static WrapFactory wrapFactory = new CustomWrapFactory();
 
-    private final int optimizationLevel;
+	private final int optimizationLevel;
 
-    private Scriptable globalScope;
+	private Global globalScope;
 
-    @Inject
-    public JavaScriptScriptEngineService(Settings settings) {
-        super(settings);
+	private File modulesFile;
 
-        this.optimizationLevel = componentSettings.getAsInt("optimization_level", 1);
+	@Inject
+	public JavaScriptScriptEngineService(Settings settings, Environment env) {
+		super(settings);
 
-        Context ctx = Context.enter();
-        try {
-            ctx.setWrapFactory(wrapFactory);
-            globalScope = ctx.initStandardObjects(null, true);
-        } finally {
-            Context.exit();
-        }
-    }
+		this.optimizationLevel = componentSettings.getAsInt("optimization_level", 1);
 
-    @Override
-    public void close() {
+		if (env.configFile() != null && env.configFile().exists()) {
+			File scriptsFile = new File(env.configFile(), "scripts");
+			if (scriptsFile != null && scriptsFile.exists()) {
+				modulesFile = new File(scriptsFile, "modules");
+			}
+		}
 
-    }
+		globalScope = new Global();
+		Context ctx = Context.enter();
+		globalScope.initStandardObjects(ctx, true);
 
-    @Override
-    public String[] types() {
-        return new String[]{"js", "javascript"};
-    }
+		try {
+			ctx.setWrapFactory(wrapFactory);
+			if (modulesFile != null && modulesFile.exists()) {
+				logger.debug("Loading modules: ", modulesFile);
+				List<String> modulePaths = Arrays.asList(modulesFile.toURI().toString());
+				globalScope.installRequire(ctx, modulePaths, false);
+			}
+		} finally {
+			Context.exit();
+		}
+	}
 
-    @Override
-    public String[] extensions() {
-        return new String[]{"js"};
-    }
+	@Override
+	public void close() {
 
-    @Override
-    public Object compile(String script) {
-        Context ctx = Context.enter();
-        try {
-            ctx.setWrapFactory(wrapFactory);
-            ctx.setOptimizationLevel(optimizationLevel);
-            return ctx.compileString(script, generateScriptName(), 1, null);
-        } finally {
-            Context.exit();
-        }
-    }
+	}
 
-    @Override
-    public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
-        Context ctx = Context.enter();
-        try {
-            ctx.setWrapFactory(wrapFactory);
+	@Override
+	public String[] types() {
+		return new String[] { "js", "javascript" };
+	}
 
-            Scriptable scope = ctx.newObject(globalScope);
-            scope.setPrototype(globalScope);
-            scope.setParentScope(null);
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
-            }
+	@Override
+	public String[] extensions() {
+		return new String[] { "js" };
+	}
 
-            return new JavaScriptExecutableScript((Script) compiledScript, scope);
-        } finally {
-            Context.exit();
-        }
-    }
+	@Override
+	public Object compile(String script) {
+		Context ctx = Context.enter();
+		try {
+			ctx.setWrapFactory(wrapFactory);
+			ctx.setOptimizationLevel(optimizationLevel);
+			return ctx.compileString(script, generateScriptName(), 1, null);
+		} finally {
+			Context.exit();
+		}
+	}
 
-    @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        Context ctx = Context.enter();
-        try {
-            ctx.setWrapFactory(wrapFactory);
+	@Override
+	public ExecutableScript executable(Object compiledScript,
+			Map<String, Object> vars) {
+		Context ctx = Context.enter();
+		try {
+			ctx.setWrapFactory(wrapFactory);
 
-            Scriptable scope = ctx.newObject(globalScope);
-            scope.setPrototype(globalScope);
-            scope.setParentScope(null);
+			Scriptable scope = ctx.newObject(globalScope);
+			scope.setPrototype(globalScope);
+			scope.setParentScope(null);
+			for (Map.Entry<String, Object> entry : vars.entrySet()) {
+				ScriptableObject.putProperty(scope, entry.getKey(),
+						entry.getValue());
+			}
 
-            for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
-                ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
-            }
+			return new JavaScriptExecutableScript((Script) compiledScript,
+					scope);
+		} finally {
+			Context.exit();
+		}
+	}
 
-            if (vars != null) {
-                for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                    ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
-                }
-            }
+	@Override
+	public SearchScript search(Object compiledScript, SearchLookup lookup,
+			@Nullable Map<String, Object> vars) {
+		Context ctx = Context.enter();
+		try {
+			ctx.setWrapFactory(wrapFactory);
 
-            return new JavaScriptSearchScript((Script) compiledScript, scope, lookup);
-        } finally {
-            Context.exit();
-        }
-    }
+			Scriptable scope = ctx.newObject(globalScope);
+			scope.setPrototype(globalScope);
+			scope.setParentScope(null);
 
-    @Override
-    public Object execute(Object compiledScript, Map<String, Object> vars) {
-        Context ctx = Context.enter();
-        ctx.setWrapFactory(wrapFactory);
-        try {
-            Script script = (Script) compiledScript;
-            Scriptable scope = ctx.newObject(globalScope);
-            scope.setPrototype(globalScope);
-            scope.setParentScope(null);
+			for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
+				ScriptableObject.putProperty(scope, entry.getKey(),
+						entry.getValue());
+			}
 
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
-            }
-            Object ret = script.exec(ctx, scope);
-            return ScriptValueConverter.unwrapValue(ret);
-        } finally {
-            Context.exit();
-        }
-    }
+			if (vars != null) {
+				for (Map.Entry<String, Object> entry : vars.entrySet()) {
+					ScriptableObject.putProperty(scope, entry.getKey(),
+							entry.getValue());
+				}
+			}
 
-    @Override
-    public Object unwrap(Object value) {
-        return ScriptValueConverter.unwrapValue(value);
-    }
+			return new JavaScriptSearchScript((Script) compiledScript, scope,
+					lookup);
+		} finally {
+			Context.exit();
+		}
+	}
 
-    private String generateScriptName() {
-        return "Script" + counter.incrementAndGet() + ".js";
-    }
+	@Override
+	public Object execute(Object compiledScript, Map<String, Object> vars) {
+		Context ctx = Context.enter();
+		ctx.setWrapFactory(wrapFactory);
+		try {
+			Script script = (Script) compiledScript;
+			Scriptable scope = ctx.newObject(globalScope);
+			scope.setPrototype(globalScope);
+			scope.setParentScope(null);
 
-    public static class JavaScriptExecutableScript implements ExecutableScript {
+			for (Map.Entry<String, Object> entry : vars.entrySet()) {
+				ScriptableObject.putProperty(scope, entry.getKey(),
+						entry.getValue());
+			}
+			Object ret = script.exec(ctx, scope);
+			return ScriptValueConverter.unwrapValue(ret);
+		} finally {
+			Context.exit();
+		}
+	}
 
-        private final Script script;
+	@Override
+	public Object unwrap(Object value) {
+		return ScriptValueConverter.unwrapValue(value);
+	}
 
-        private final Scriptable scope;
+	private String generateScriptName() {
+		return "Script" + counter.incrementAndGet() + ".js";
+	}
 
-        public JavaScriptExecutableScript(Script script, Scriptable scope) {
-            this.script = script;
-            this.scope = scope;
-        }
+	public static class JavaScriptExecutableScript implements ExecutableScript {
 
-        @Override
-        public Object run() {
-            Context ctx = Context.enter();
-            try {
-                ctx.setWrapFactory(wrapFactory);
-                return ScriptValueConverter.unwrapValue(script.exec(ctx, scope));
-            } finally {
-                Context.exit();
-            }
-        }
+		private final Script script;
 
-        @Override
-        public void setNextVar(String name, Object value) {
-            ScriptableObject.putProperty(scope, name, value);
-        }
+		private final Scriptable scope;
 
-        @Override
-        public Object unwrap(Object value) {
-            return ScriptValueConverter.unwrapValue(value);
-        }
-    }
+		public JavaScriptExecutableScript(Script script, Scriptable scope) {
+			this.script = script;
+			this.scope = scope;
+		}
 
-    public static class JavaScriptSearchScript implements SearchScript {
+		@Override
+		public Object run() {
+			Context ctx = Context.enter();
+			try {
+				ctx.setWrapFactory(wrapFactory);
+				return ScriptValueConverter
+						.unwrapValue(script.exec(ctx, scope));
+			} finally {
+				Context.exit();
+			}
+		}
 
-        private final Script script;
+		@Override
+		public void setNextVar(String name, Object value) {
+			ScriptableObject.putProperty(scope, name, value);
+		}
 
-        private final Scriptable scope;
+		@Override
+		public Object unwrap(Object value) {
+			return ScriptValueConverter.unwrapValue(value);
+		}
+	}
 
-        private final SearchLookup lookup;
+	public static class JavaScriptSearchScript implements SearchScript {
 
-        public JavaScriptSearchScript(Script script, Scriptable scope, SearchLookup lookup) {
-            this.script = script;
-            this.scope = scope;
-            this.lookup = lookup;
-        }
+		private final Script script;
 
-        @Override
-        public void setScorer(Scorer scorer) {
-            lookup.setScorer(scorer);
-        }
+		private final Scriptable scope;
 
-        @Override
-        public void setNextReader(AtomicReaderContext context) {
-            lookup.setNextReader(context);
-        }
+		private final SearchLookup lookup;
 
-        @Override
-        public void setNextDocId(int doc) {
-            lookup.setNextDocId(doc);
-        }
+		public JavaScriptSearchScript(Script script, Scriptable scope,
+				SearchLookup lookup) {
+			this.script = script;
+			this.scope = scope;
+			this.lookup = lookup;
+		}
 
-        @Override
-        public void setNextScore(float score) {
-            ScriptableObject.putProperty(scope, "_score", score);
-        }
+		@Override
+		public void setScorer(Scorer scorer) {
+			lookup.setScorer(scorer);
+		}
 
-        @Override
-        public void setNextVar(String name, Object value) {
-            ScriptableObject.putProperty(scope, name, value);
-        }
+		@Override
+		public void setNextReader(AtomicReaderContext context) {
+			lookup.setNextReader(context);
+		}
 
-        @Override
-        public void setNextSource(Map<String, Object> source) {
-            lookup.source().setNextSource(source);
-        }
+		@Override
+		public void setNextDocId(int doc) {
+			lookup.setNextDocId(doc);
+		}
 
-        @Override
-        public Object run() {
-            Context ctx = Context.enter();
-            try {
-                ctx.setWrapFactory(wrapFactory);
-                return ScriptValueConverter.unwrapValue(script.exec(ctx, scope));
-            } finally {
-                Context.exit();
-            }
-        }
+		@Override
+		public void setNextScore(float score) {
+			ScriptableObject.putProperty(scope, "_score", score);
+		}
 
-        @Override
-        public float runAsFloat() {
-            return ((Number) run()).floatValue();
-        }
+		@Override
+		public void setNextVar(String name, Object value) {
+			ScriptableObject.putProperty(scope, name, value);
+		}
 
-        @Override
-        public long runAsLong() {
-            return ((Number) run()).longValue();
-        }
+		@Override
+		public void setNextSource(Map<String, Object> source) {
+			lookup.source().setNextSource(source);
+		}
 
-        @Override
-        public double runAsDouble() {
-            return ((Number) run()).doubleValue();
-        }
+		@Override
+		public Object run() {
+			Context ctx = Context.enter();
+			try {
+				ctx.setWrapFactory(wrapFactory);
+				return ScriptValueConverter
+						.unwrapValue(script.exec(ctx, scope));
+			} finally {
+				Context.exit();
+			}
+		}
 
-        @Override
-        public Object unwrap(Object value) {
-            return ScriptValueConverter.unwrapValue(value);
-        }
-    }
+		@Override
+		public float runAsFloat() {
+			return ((Number) run()).floatValue();
+		}
 
-    /**
-     * Wrap Factory for Rhino Script Engine
-     */
-    public static class CustomWrapFactory extends WrapFactory {
+		@Override
+		public long runAsLong() {
+			return ((Number) run()).longValue();
+		}
 
-        public CustomWrapFactory() {
+		@Override
+		public double runAsDouble() {
+			return ((Number) run()).doubleValue();
+		}
+
+		@Override
+		public Object unwrap(Object value) {
+			return ScriptValueConverter.unwrapValue(value);
+		}
+	}
+
+	/**
+	 * Wrap Factory for Rhino Script Engine
+	 */
+	public static class CustomWrapFactory extends WrapFactory {
+
+		public CustomWrapFactory() {
             setJavaPrimitiveWrap(false); // RingoJS does that..., claims its annoying...
-        }
+		}
 
-        public Scriptable wrapAsJavaObject(Context cx, Scriptable scope, Object javaObject, Class staticType) {
-            if (javaObject instanceof Map) {
-                return new NativeMap(scope, (Map) javaObject);
-            }
-            if (javaObject instanceof List) {
-                return new NativeList(scope, (List) javaObject);
-            }
-            return super.wrapAsJavaObject(cx, scope, javaObject, staticType);
-        }
-    }
+		public Scriptable wrapAsJavaObject(Context cx, Scriptable scope,
+				Object javaObject, Class staticType) {
+			if (javaObject instanceof Map) {
+				return new NativeMap(scope, (Map) javaObject);
+			}
+			if (javaObject instanceof List) {
+				return new NativeList(scope, (List) javaObject);
+			}
+			return super.wrapAsJavaObject(cx, scope, javaObject, staticType);
+		}
+	}
 }

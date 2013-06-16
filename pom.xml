@@ -101,6 +101,16 @@
     </dependencies>
 
     <build>
+        <testResources>
+            <testResource>
+                <directory>${project.basedir}/src/test/resources/</directory>
+                <targetPath>${project.build.testOutputDirectory}</targetPath>
+            </testResource>
+        	<testResource>
+        		<directory>${project.basedir}/src/test/resources/scripts</directory>
+                <targetPath>${project.build.testOutputDirectory}/conf/scripts</targetPath>
+        	</testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

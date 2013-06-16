@@ -19,15 +19,21 @@
 
 package org.elasticsearch.script.javascript;
 
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +50,11 @@ public class JavaScriptScriptEngineTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() {
-        se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        String confdir = JavaScriptScriptEngineTests.class.getResource("/conf").getPath();
+        se = new JavaScriptScriptEngineService(
+                ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(
+                ImmutableSettings.settingsBuilder()
+                        .put("path.conf", confdir).build()));
     }
 
     @After
@@ -170,5 +180,21 @@ public class JavaScriptScriptEngineTests extends ElasticsearchTestCase {
         script.setNextVar("value", 2);
         o = script.run();
         assertThat(((Number) o).intValue(), equalTo(2));
+    }
+
+    @Test
+    public void testCommonJSmodule() throws IOException {
+        Map<String, Object> vars = new HashMap<String, Object>();
+        Map<String, Object> ctx = new HashMap<String, Object>();
+
+        vars.put("ctx", ctx);
+
+        String file = Streams.copyToString(new InputStreamReader(new FileInputStream(JavaScriptScriptEngineTests.class.getResource("/conf/scripts/test1.js").getFile()), Charsets.UTF_8));
+        Object compiledScript = se.compile(file);
+        ExecutableScript script = se.executable(compiledScript, vars);
+        Object o = script.run();
+        ctx = (Map<String, Object>) se.unwrap(vars.get("ctx"));
+        assertThat(ctx.containsKey("pi"), equalTo(true));
+        assertThat(((Double) ctx.get("pi")).doubleValue(), equalTo(3.14));
     }
 }
