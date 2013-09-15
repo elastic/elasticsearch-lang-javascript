@@ -140,5 +140,11 @@
                 </executions>
             </plugin>
         </plugins>
+        <testResources>       
+        	<testResource>
+        		<targetPath>${project.build.directory}/conf/scripts</targetPath>
+        		<directory>${project.basedir}/src/test/resources/scripts</directory>
+        	</testResource>
+        </testResources>
     </build>
 </project>

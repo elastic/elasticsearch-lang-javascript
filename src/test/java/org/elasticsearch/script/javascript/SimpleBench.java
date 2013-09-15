@@ -21,6 +21,7 @@ package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ExecutableScript;
 
 import java.util.HashMap;
@@ -31,41 +32,46 @@ import java.util.Map;
  */
 public class SimpleBench {
 
-    public static void main(String[] args) {
-        JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
-        Object compiled = se.compile("x + y");
+	public static void main(String[] args) {
+		JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(
+				ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(
+						ImmutableSettings.settingsBuilder()
+								.put("path.conf", "target/conf").build()));
+		Object compiled = se.compile("x + y");
 
-        Map<String, Object> vars = new HashMap<String, Object>();
-        // warm up
-        for (int i = 0; i < 1000; i++) {
-            vars.put("x", i);
-            vars.put("y", i + 1);
-            se.execute(compiled, vars);
-        }
+		Map<String, Object> vars = new HashMap<String, Object>();
+		// warm up
+		for (int i = 0; i < 1000; i++) {
+			vars.put("x", i);
+			vars.put("y", i + 1);
+			se.execute(compiled, vars);
+		}
 
-        final long ITER = 100000;
+		final long ITER = 100000;
 
-        StopWatch stopWatch = new StopWatch().start();
-        for (long i = 0; i < ITER; i++) {
-            se.execute(compiled, vars);
-        }
-        System.out.println("Execute Took: " + stopWatch.stop().lastTaskTime());
+		StopWatch stopWatch = new StopWatch().start();
+		for (long i = 0; i < ITER; i++) {
+			se.execute(compiled, vars);
+		}
+		System.out.println("Execute Took: " + stopWatch.stop().lastTaskTime());
 
-        stopWatch = new StopWatch().start();
-        ExecutableScript executableScript = se.executable(compiled, vars);
-        for (long i = 0; i < ITER; i++) {
-            executableScript.run();
-        }
-        System.out.println("Executable Took: " + stopWatch.stop().lastTaskTime());
+		stopWatch = new StopWatch().start();
+		ExecutableScript executableScript = se.executable(compiled, vars);
+		for (long i = 0; i < ITER; i++) {
+			executableScript.run();
+		}
+		System.out.println("Executable Took: "
+				+ stopWatch.stop().lastTaskTime());
 
-        stopWatch = new StopWatch().start();
-        executableScript = se.executable(compiled, vars);
-        for (long i = 0; i < ITER; i++) {
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                executableScript.setNextVar(entry.getKey(), entry.getValue());
-            }
-            executableScript.run();
-        }
-        System.out.println("Executable (vars) Took: " + stopWatch.stop().lastTaskTime());
-    }
+		stopWatch = new StopWatch().start();
+		executableScript = se.executable(compiled, vars);
+		for (long i = 0; i < ITER; i++) {
+			for (Map.Entry<String, Object> entry : vars.entrySet()) {
+				executableScript.setNextVar(entry.getKey(), entry.getValue());
+			}
+			executableScript.run();
+		}
+		System.out.println("Executable (vars) Took: "
+				+ stopWatch.stop().lastTaskTime());
+	}
 }
