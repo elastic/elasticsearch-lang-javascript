@@ -21,6 +21,7 @@ package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -40,7 +41,8 @@ public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
 
     @Test
     public void testExecutableNoRuntimeParams() throws Exception {
-        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(
+                ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment());
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -84,7 +86,10 @@ public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
 
     @Test
     public void testExecutableWithRuntimeParams() throws Exception {
-        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(
+                ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(
+                ImmutableSettings.settingsBuilder()
+                        .put("path.conf", "target/conf").build()));
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -127,7 +132,10 @@ public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
 
     @Test
     public void testExecute() throws Exception {
-        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(
+                ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(
+                ImmutableSettings.settingsBuilder()
+                        .put("path.conf", "target/conf").build()));
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
