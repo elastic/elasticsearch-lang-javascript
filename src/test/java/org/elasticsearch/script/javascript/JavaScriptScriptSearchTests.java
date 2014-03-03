@@ -33,6 +33,7 @@ import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -105,18 +106,13 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addField("_source.obj1") // we also automatically detect _source in fields
                 .addScriptField("s_obj1", "js", "_source.obj1", null)
                 .addScriptField("s_obj1_test", "js", "_source.obj1.test", null)
                 .addScriptField("s_obj2", "js", "_source.obj2", null)
                 .addScriptField("s_obj2_arr2", "js", "_source.obj2.arr2", null)
                 .execute().actionGet();
 
-        Map<String, Object> sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("_source.obj1").value();
-        assertThat(sObj1.get("test").toString(), equalTo("something"));
-        assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
-
-        sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("s_obj1").value();
+        Map<String, Object> sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("s_obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
         assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
@@ -145,7 +141,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running doc['num1'].value");
         SearchResponse response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(scriptFunction("doc['num1'].value", "js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -159,7 +155,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running -doc['num1'].value");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("-doc['num1'].value").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(scriptFunction("-doc['num1'].value", "js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -171,10 +167,13 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
 
 
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(
+                functionScoreQuery(scriptFunction("_doc['score'].value"))).setMinScore(1.5f).get();
+
         logger.info(" --> running pow(doc['num1'].value, 2)");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("Math.pow(doc['num1'].value, 2)").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(scriptFunction("Math.pow(doc['num1'].value, 2)", "js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -188,7 +187,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running max(doc['num1'].value, 1)");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("Math.max(doc['num1'].value, 1)").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(scriptFunction("Math.max(doc['num1'].value, 1)", "js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -202,7 +201,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running doc['num1'].value * _score");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * _score").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(scriptFunction("doc['num1'].value * _score", "js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -216,7 +215,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running param1 * param2 * _score");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * _score").param("param1", 2).param("param2", 2).lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value")).add(scriptFunction("param1 * param2 * _score", "js").param("param1", 2).param("param2", 2))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
