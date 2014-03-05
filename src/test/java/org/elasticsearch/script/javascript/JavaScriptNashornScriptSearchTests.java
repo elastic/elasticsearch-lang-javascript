@@ -45,14 +45,14 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(scope=Scope.SUITE)
-public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
+public class JavaScriptNashornScriptSearchTests extends ElasticsearchIntegrationTest {
 
     // in order to add new setting, we need to override this nodeSettings method
     // reference from http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/integration-tests.html
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
       return ImmutableSettings.settingsBuilder()
-               .put("script.javascript.engine", "rhino")
+               .put("script.javascript.engine", "nashorn")
                .put(super.nodeSettings(nodeOrdinal)).build();
     }
 
