@@ -24,16 +24,18 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
-import javax.script.Bindings;
 import javax.script.Compilable;
 import javax.script.CompiledScript;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import javax.script.SimpleBindings;
 import javax.script.SimpleScriptContext;
 
 import org.apache.lucene.index.AtomicReaderContext;
@@ -163,23 +165,134 @@ public class JavaScriptNashornScriptEngineService extends AbstractComponent
         return new NashornExecutableScript((CompiledScript) compiledScript, context);
     }
 
+    /**
+     * Lazily resolve and wrap a variable.
+     */
+    private static class LazyBindings extends SimpleBindings {
+        private SearchLookup lookup;
+        private Map<String, Object> vars;
+        private int numberOfObjectsNotWrappedYet;
+        LazyBindings(SearchLookup lookup, Map<String, Object> vars) {
+            super();
+            this.lookup = lookup;
+            this.vars = vars;
+            this.numberOfObjectsNotWrappedYet = (lookup != null ? lookup.asMap().size() : 0) +
+                                                (vars != null ? vars.size() : 0);
+        }
+        @Override
+        public Object get(Object key) {
+            Object value = super.get(key);
+            if (value != null || numberOfObjectsNotWrappedYet == 0) {
+                return value;
+            }
+            if (vars != null) {
+                value = vars.get(key);
+                if (value != null) {
+                    value = NashornScriptValueConverter.wrapValue(value);
+                    super.put((String) key, value);
+                    numberOfObjectsNotWrappedYet--;
+                    return value;
+                }
+            }
+            if (lookup != null) {
+                value = lookup.asMap().get(key);
+                if (value != null) {
+                    value = NashornScriptValueConverter.wrapValue(value);
+                    super.put((String) key, value);
+                    numberOfObjectsNotWrappedYet--;
+                    return value;
+                }
+            }
+            return null;
+        }
+        @Override
+        public boolean containsKey(Object key) {
+            if (super.containsKey(key)) {
+                return true;
+            }
+            if (vars != null && vars.containsKey(key)) {
+                return true;
+            }
+            if (lookup != null && lookup.asMap().containsKey(key)) {
+                return true;
+            }
+            return false;
+        }
+        @Override
+        public boolean isEmpty() {
+            if (numberOfObjectsNotWrappedYet == 0) {
+                return super.isEmpty();
+            }
+            return (lookup == null || lookup.asMap().isEmpty()) &&
+                (vars == null || vars.isEmpty()) && super.isEmpty();
+        }
+        @Override
+        public Set<String> keySet() {
+            if (numberOfObjectsNotWrappedYet == 0) {
+                return super.keySet();
+            }
+            HashSet<String> res = new HashSet<String>(super.keySet());
+            if (vars != null) {
+                res.addAll(vars.keySet());
+            }
+            if (lookup != null) {
+                res.addAll(lookup.asMap().keySet());
+            }
+            return res;
+        }
+        @Override
+        public int size() {
+            return super.size() + numberOfObjectsNotWrappedYet;
+        }
+        @Override
+        public Set<Map.Entry<String,Object>> entrySet() {
+            wrapRemaining();
+            return super.entrySet();
+        }
+        @Override
+        public boolean containsValue(Object value) {
+            wrapRemaining();
+            return super.containsValue(value);
+        };
+        @Override
+        public Collection<Object> values() {
+            wrapRemaining();
+            return super.values();
+        };
+        /**
+         * Wrap the objects in lookup and vars that have not been wrapped yet.
+         * <p>
+         * Required to support all of Map's methods but tests show that it is not called.
+         * </p>
+         */
+        private void wrapRemaining() {
+            if (numberOfObjectsNotWrappedYet == 0) {
+                return; // done
+            }
+            numberOfObjectsNotWrappedYet = 0;
+            if (lookup != null) {
+                for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
+                    if (!super.containsKey(entry.getKey())) {
+                        super.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
+                    }
+                }
+            }
+            if (vars != null) {
+                for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                    if (!super.containsKey(entry.getKey())) {
+                        super.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
+                    }
+                }
+            }
+        }
+    }
+
     private ScriptContext createContextWithVars(SearchLookup lookup, Map<String, Object> vars) {
         ScriptContext newContext = new SimpleScriptContext();
         if (lookup == null && vars == null) {
             return newContext;
         }
-        Bindings newBindings = newContext.getBindings(ScriptContext.ENGINE_SCOPE);
-        if (lookup != null) {
-            for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
-                newBindings.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
-            }
-        }
-        if (vars != null) {
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                // we need to wrap the List into Object[] because engine doesn't recognize List
-                newBindings.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
-            }
-        }
+        newContext.setBindings(new LazyBindings(lookup, vars), ScriptContext.ENGINE_SCOPE);
         return newContext;
     }
 
