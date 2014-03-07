@@ -63,7 +63,7 @@ public class JavascriptPlugin extends AbstractPlugin {
     }
 
     public void onModule(ScriptModule module) {
-        String javascriptEngine = settings.get(SCRIPT_JAVASCRIPT_ENGINE,AUTO);
+        String javascriptEngine = settings.get(SCRIPT_JAVASCRIPT_ENGINE, AUTO);
         String engineClassname = null;
         if (javascriptEngine == null || AUTO.equalsIgnoreCase(javascriptEngine)) {
             if (isJDK8()) {
@@ -73,7 +73,7 @@ public class JavascriptPlugin extends AbstractPlugin {
             }
         } else if (NASHORN.equalsIgnoreCase(javascriptEngine)) {
             if (!isJDK8()) {
-                throw new SettingsException("Javascript engine - Nashorn - specified by script.javascript.engine requires JDK8.");
+                throw new SettingsException("Javascript engine - Nashorn - specified by " + SCRIPT_JAVASCRIPT_ENGINE + " requires JDK8.");
             };
             engineClassname = NASHORN_SERVICE_CLASS;
         } else if (RHINO.equalsIgnoreCase(settings.get(SCRIPT_JAVASCRIPT_ENGINE, RHINO))) {
@@ -91,6 +91,6 @@ public class JavascriptPlugin extends AbstractPlugin {
     }
 
     private boolean isJDK8() {
-        return Double.parseDouble(System.getProperty("java.version").substring(0,  System.getProperty("java.version").lastIndexOf("."))) >= 1.8;
+        return Double.parseDouble(System.getProperty("java.version").substring(0, System.getProperty("java.version").lastIndexOf("."))) >= 1.8;
     }
 }
