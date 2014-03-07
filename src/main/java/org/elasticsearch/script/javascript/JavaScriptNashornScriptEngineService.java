@@ -19,9 +19,12 @@
 
 package org.elasticsearch.script.javascript;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import javax.script.Bindings;
@@ -31,11 +34,7 @@ import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-import javax.script.SimpleBindings;
 import javax.script.SimpleScriptContext;
-
-import jdk.nashorn.internal.objects.NativeArray;
-import jdk.nashorn.internal.runtime.ScriptObject;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
@@ -50,38 +49,69 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 public class JavaScriptNashornScriptEngineService extends AbstractComponent
         implements ScriptEngineService {
+
     public static class NashornScriptValueConverter {
+        private static Class<?> CLASS_SCRIPT_OBJECT;
+        private static Method METHOD_SCRIPT_OBJECT_IS_ARRAY;
+        private static Method METHOD_SCRIPT_OBJECT_ENTRY_SET;
+        private static Method METHOD_SCRIPT_OBJECT_SIZE;
+
+        private static Class<?> CLASS_ARRAY_LIKE_ITERATOR;
+        private static Method METHOD_ARRAY_ITERATOR;
+
         private NashornScriptValueConverter() {
+        }
+        static void setup() {
+            try {
+                // Use introspection to avoid accessing nashorn specific classes.
+                // This way we can compile with jdk6
+                CLASS_SCRIPT_OBJECT = JavaScriptNashornScriptEngineService.class.getClassLoader().loadClass("jdk.nashorn.internal.runtime.ScriptObject");
+                METHOD_SCRIPT_OBJECT_IS_ARRAY = CLASS_SCRIPT_OBJECT.getMethod("isArray");
+                METHOD_SCRIPT_OBJECT_ENTRY_SET = CLASS_SCRIPT_OBJECT.getMethod("entrySet");
+                METHOD_SCRIPT_OBJECT_SIZE = CLASS_SCRIPT_OBJECT.getMethod("size");
+
+                CLASS_ARRAY_LIKE_ITERATOR = JavaScriptNashornScriptEngineService.class.getClassLoader().loadClass("jdk.nashorn.internal.runtime.arrays.ArrayLikeIterator");
+                METHOD_ARRAY_ITERATOR = CLASS_ARRAY_LIKE_ITERATOR.getDeclaredMethod("arrayLikeIterator", Object.class);
+            } catch (Throwable t) {
+                throw new RuntimeException(t);
+            }
         }
         public static Object unwrapValue(Object value) {
             if (value == null) {
                 return null;
-            } else if (value instanceof NativeArray || value instanceof Object[]) {
-                Object[] array = null;
-                if (value instanceof NativeArray) {
-                    NativeArray narr = (NativeArray)value;
-                    array = narr.asObjectArray();
-                } else if (value instanceof Object[]) {
-                    array = (Object[]) value;
-                }
-
+            } else if (value instanceof Object[]) {
+                Object[] array = (Object[]) value;
                 ArrayList<Object> list = new ArrayList<Object>(array.length);
                 for (int i = 0; i < array.length; i++) {
                     list.add(unwrapValue(array[i]));
                 }
                 value = list;
-            } else if (value instanceof ScriptObject) {
-                ScriptObject jso = (ScriptObject)value;
-                Map<Object, Object> copyMap = new HashMap<Object, Object>(jso.size());
-                for (Object key : jso.keySet()) {
-                    copyMap.put(key, unwrapValue(jso.get(key)));
+            } else if (CLASS_SCRIPT_OBJECT.isInstance(value)) {
+                try {
+                    if ((Boolean)METHOD_SCRIPT_OBJECT_IS_ARRAY.invoke(value)) {
+                        ArrayList<Object> list = new ArrayList<Object>();
+                        Iterator<Object> it = (Iterator<Object>) METHOD_ARRAY_ITERATOR.invoke(null, value);
+                        while (it.hasNext()) {
+                            list.add(unwrapValue(it.next()));
+                        }
+                        value = list;
+                    } else {
+                        Map<Object, Object> copyMap = new HashMap<Object, Object>((Integer)METHOD_SCRIPT_OBJECT_SIZE.invoke(value));
+                        for (Map.Entry<Object,Object> entry : (Iterable<Map.Entry<Object,Object>>) METHOD_SCRIPT_OBJECT_ENTRY_SET.invoke(value)) {
+                            copyMap.put(entry.getKey(), unwrapValue(entry.getValue()));
+                        }
+                        value = copyMap;
+                    }
+                } catch(InvocationTargetException ite) {
+                    throw new RuntimeException(ite);
+                } catch(IllegalAccessException iae) {
+                    throw new RuntimeException(iae);
                 }
-                value = copyMap;
             } else if (value instanceof Map) {
                 Map<Object, Object> map = (Map<Object, Object>) value;
                 Map<Object, Object> copyMap = new HashMap<Object, Object>(map.size());
-                for (Object key : map.keySet()) {
-                    copyMap.put(key, unwrapValue(map.get(key)));
+                for (Map.Entry<Object,Object> entry : map.entrySet()) {
+                    copyMap.put(entry.getKey(), unwrapValue(entry.getValue()));
                 }
                 value = copyMap;
             }
@@ -112,6 +142,7 @@ public class JavaScriptNashornScriptEngineService extends AbstractComponent
         super(settings);
         m = new ScriptEngineManager();
         nashorn = m.getEngineByName("nashorn");
+        NashornScriptValueConverter.setup();
     }
 
 
@@ -137,7 +168,7 @@ public class JavaScriptNashornScriptEngineService extends AbstractComponent
         if (lookup == null && vars == null) {
             return newContext;
         }
-        Bindings newBindings = new SimpleBindings();
+        Bindings newBindings = newContext.getBindings(ScriptContext.ENGINE_SCOPE);
         if (lookup != null) {
             for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
                 newBindings.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
@@ -149,7 +180,6 @@ public class JavaScriptNashornScriptEngineService extends AbstractComponent
                 newBindings.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
             }
         }
-        newContext.setBindings(newBindings, ScriptContext.GLOBAL_SCOPE);
         return newContext;
     }
 
@@ -214,7 +244,7 @@ public class JavaScriptNashornScriptEngineService extends AbstractComponent
 
         @Override
         public void setNextVar(String name, Object value) {
-            this.context.getBindings(ScriptContext.GLOBAL_SCOPE).put(name, value);
+            this.context.getBindings(ScriptContext.ENGINE_SCOPE).put(name, value);
         }
 
         @Override
@@ -273,12 +303,12 @@ public class JavaScriptNashornScriptEngineService extends AbstractComponent
 
         @Override
         public void setNextScore(float score) {
-            this.context.getBindings(ScriptContext.GLOBAL_SCOPE).put("_score", score);
+            this.context.getBindings(ScriptContext.ENGINE_SCOPE).put("_score", score);
         }
 
         @Override
         public void setNextVar(String name, Object value) {
-            this.context.getBindings(ScriptContext.GLOBAL_SCOPE).put(name, value);
+            this.context.getBindings(ScriptContext.ENGINE_SCOPE).put(name, value);
         }
 
         @Override
