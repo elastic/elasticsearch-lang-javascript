@@ -49,7 +49,7 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-public class JavaScriptNashornScriptEngineService extends AbstractComponent
+public class JavascriptNashornScriptEngineService extends AbstractComponent
         implements ScriptEngineService {
 
     public static class NashornScriptValueConverter {
@@ -67,12 +67,12 @@ public class JavaScriptNashornScriptEngineService extends AbstractComponent
             try {
                 // Use introspection to avoid accessing nashorn specific classes.
                 // This way we can compile with jdk6
-                CLASS_SCRIPT_OBJECT = JavaScriptNashornScriptEngineService.class.getClassLoader().loadClass("jdk.nashorn.internal.runtime.ScriptObject");
+                CLASS_SCRIPT_OBJECT = JavascriptNashornScriptEngineService.class.getClassLoader().loadClass("jdk.nashorn.internal.runtime.ScriptObject");
                 METHOD_SCRIPT_OBJECT_IS_ARRAY = CLASS_SCRIPT_OBJECT.getMethod("isArray");
                 METHOD_SCRIPT_OBJECT_ENTRY_SET = CLASS_SCRIPT_OBJECT.getMethod("entrySet");
                 METHOD_SCRIPT_OBJECT_SIZE = CLASS_SCRIPT_OBJECT.getMethod("size");
 
-                CLASS_ARRAY_LIKE_ITERATOR = JavaScriptNashornScriptEngineService.class.getClassLoader().loadClass("jdk.nashorn.internal.runtime.arrays.ArrayLikeIterator");
+                CLASS_ARRAY_LIKE_ITERATOR = JavascriptNashornScriptEngineService.class.getClassLoader().loadClass("jdk.nashorn.internal.runtime.arrays.ArrayLikeIterator");
                 METHOD_ARRAY_ITERATOR = CLASS_ARRAY_LIKE_ITERATOR.getDeclaredMethod("arrayLikeIterator", Object.class);
             } catch (Throwable t) {
                 throw new RuntimeException(t);
@@ -140,7 +140,7 @@ public class JavaScriptNashornScriptEngineService extends AbstractComponent
     private ScriptEngine nashorn;
 
     @Inject
-    public JavaScriptNashornScriptEngineService(Settings settings) {
+    public JavascriptNashornScriptEngineService(Settings settings) {
         super(settings);
         m = new ScriptEngineManager();
         nashorn = m.getEngineByName("nashorn");

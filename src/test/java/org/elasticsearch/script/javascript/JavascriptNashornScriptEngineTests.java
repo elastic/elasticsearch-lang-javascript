@@ -15,12 +15,12 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
-public class JavaScriptNashornScriptEngineTests extends ElasticsearchTestCase{
-    private JavaScriptNashornScriptEngineService nashorn;
+public class JavascriptNashornScriptEngineTests extends ElasticsearchTestCase{
+    private JavascriptNashornScriptEngineService nashorn;
 
     @Before
     public void setup() {
-        nashorn = new JavaScriptNashornScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        nashorn = new JavascriptNashornScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
     @Test

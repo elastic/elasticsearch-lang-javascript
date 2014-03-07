@@ -38,13 +38,13 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  *
  */
-public class JavaScriptScriptEngineTests extends ElasticsearchTestCase {
+public class JavascriptScriptEngineTests extends ElasticsearchTestCase {
 
-    private JavaScriptScriptEngineService se;
+    private JavascriptRhinoScriptEngineService se;
 
     @Before
     public void setup() {
-        se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        se = new JavascriptRhinoScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
     @After

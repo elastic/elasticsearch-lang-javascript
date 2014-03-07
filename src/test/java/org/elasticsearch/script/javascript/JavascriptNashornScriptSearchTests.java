@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(scope=Scope.SUITE)
-public class JavaScriptNashornScriptSearchTests extends ElasticsearchIntegrationTest {
+public class JavascriptNashornScriptSearchTests extends ElasticsearchIntegrationTest {
 
     // in order to add new setting, we need to override this nodeSettings method
     // reference from http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/integration-tests.html

@@ -36,11 +36,11 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
+public class JavascriptNashornScriptMultiThreadedTest extends ElasticsearchTestCase {
 
     @Test
     public void testExecutableNoRuntimeParams() throws Exception {
-        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final JavascriptNashornScriptEngineService se = new JavascriptNashornScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -84,7 +84,7 @@ public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
 
     @Test
     public void testExecutableWithRuntimeParams() throws Exception {
-        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final JavascriptRhinoScriptEngineService se = new JavascriptRhinoScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -127,7 +127,7 @@ public class JavaScriptScriptMultiThreadedTest extends ElasticsearchTestCase {
 
     @Test
     public void testExecute() throws Exception {
-        final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final JavascriptRhinoScriptEngineService se = new JavascriptRhinoScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 

@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  *
  */
-public class JavaScriptScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public class JavascriptRhinoScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     private final AtomicLong counter = new AtomicLong();
 
@@ -52,7 +52,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     private Scriptable globalScope;
 
     @Inject
-    public JavaScriptScriptEngineService(Settings settings) {
+    public JavascriptRhinoScriptEngineService(Settings settings) {
         super(settings);
 
         this.optimizationLevel = componentSettings.getAsInt("optimization_level", 1);

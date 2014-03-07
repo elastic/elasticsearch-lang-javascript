@@ -32,7 +32,7 @@ import java.util.Map;
 public class SimpleBench {
 
     public static void main(String[] args) {
-        JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        JavascriptRhinoScriptEngineService se = new JavascriptRhinoScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
         Object compiled = se.compile("x + y");
 
         Map<String, Object> vars = new HashMap<String, Object>();
