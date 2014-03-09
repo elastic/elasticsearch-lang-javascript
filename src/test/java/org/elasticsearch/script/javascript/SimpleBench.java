@@ -22,6 +22,7 @@ package org.elasticsearch.script.javascript;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptEngineService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,19 +32,45 @@ import java.util.Map;
  */
 public class SimpleBench {
 
+    static final long ITER = 100000;
     public static void main(String[] args) {
-        JavascriptRhinoScriptEngineService se = new JavascriptRhinoScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    	ScriptEngineService se = new JavascriptRhinoScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    	System.out.println("Bench Rhino... " + ITER + " times.");
+        bench(se);
+
+        boolean nashornAvailable = false;
+        try {
+        	SimpleBench.class.getClassLoader().loadClass("jdk.nashorn.internal.runtime.ScriptObject");
+        	nashornAvailable = true;
+        } catch(Throwable t) {
+        }
+        if (nashornAvailable) {
+        	ScriptEngineService se2 = new JavascriptNashornScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        	System.out.println("Bench Nashorn... " + ITER + " times.");
+        	bench(se2);
+        } else {
+        	System.out.println("Nashorn not available here.");
+        }
+    }
+
+    private static void bench(ScriptEngineService se) {
         Object compiled = se.compile("x + y");
 
+        Map<String,Object> mockSearchLookup = new HashMap<String,Object>();
+        Map<String,Object> simpleSourceDoc = new HashMap<String,Object>();
+        simpleSourceDoc.put("foo", "bar");
+        simpleSourceDoc.put("name", "bob");
+        simpleSourceDoc.put("props", new HashMap<String,Object>());
+        mockSearchLookup.put("_source", simpleSourceDoc);
+
         Map<String, Object> vars = new HashMap<String, Object>();
+        vars.putAll(mockSearchLookup);
         // warm up
         for (int i = 0; i < 1000; i++) {
             vars.put("x", i);
             vars.put("y", i + 1);
             se.execute(compiled, vars);
         }
-
-        final long ITER = 100000;
 
         StopWatch stopWatch = new StopWatch().start();
         for (long i = 0; i < ITER; i++) {

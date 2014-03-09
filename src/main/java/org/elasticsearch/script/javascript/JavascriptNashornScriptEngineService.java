@@ -24,19 +24,15 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 
+import javax.script.Bindings;
 import javax.script.Compilable;
 import javax.script.CompiledScript;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-import javax.script.SimpleBindings;
-import javax.script.SimpleScriptContext;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
@@ -44,9 +40,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.javascript.JavascriptPlugin;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.javascript.support.SilentScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 public class JavascriptNashornScriptEngineService extends AbstractComponent
@@ -136,15 +134,33 @@ public class JavascriptNashornScriptEngineService extends AbstractComponent
         }
     }
 
-    private ScriptEngineManager m;
     private ScriptEngine nashorn;
-
+    private Bindings defaultContextBindings;
+    
     @Inject
     public JavascriptNashornScriptEngineService(Settings settings) {
         super(settings);
-        m = new ScriptEngineManager();
-        nashorn = m.getEngineByName("nashorn");
+        // setup the engine to share the definition of the Ecma script built-in objects: aka NashornGlobal.
+//        System.setProperty("nashorn.args", "--global-per-engine");
+//        ScriptEngineManager m = new ScriptEngineManager();
+//        nashorn = m.getEngineByName("nashorn");
+        // changing the system properties is not allowed by the tests. :(
+
         NashornScriptValueConverter.setup();
+        
+//        NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
+//        ScriptEngine engine = factory.getScriptEngine(new String[] { "--global-per-engine" });
+//        We cant use nashorn APIs so we need to go through introspection
+        try {
+        	String className = "jdk.nashorn.api.scripting.NashornScriptEngineFactory";
+        	Class<?> factoryClass = JavascriptPlugin.class.getClassLoader().loadClass(className);
+        	Method getScriptEngineMethod = factoryClass.getMethod("getScriptEngine", String[].class);
+        	nashorn = (ScriptEngine)getScriptEngineMethod.invoke(factoryClass.newInstance(), new Object[]{new String[] { "--global-per-engine" }});
+        } catch(Throwable t) {
+        	t.printStackTrace();
+        	throw new RuntimeException("Could not find the nashorn engine", t);
+        }
+        defaultContextBindings = nashorn.getContext().getBindings(ScriptContext.ENGINE_SCOPE);
     }
 
 
@@ -161,145 +177,38 @@ public class JavascriptNashornScriptEngineService extends AbstractComponent
 
     @Override
     public ExecutableScript executable(Object compiledScript, Map<String, Object> vars) {
-        ScriptContext context = createContextWithVars(null, vars);
+        ScriptContext context = createContext(null, vars);
         return new NashornExecutableScript((CompiledScript) compiledScript, context);
     }
 
-    /**
-     * Lazily resolve and wrap a variable.
-     */
-    private static class LazyBindings extends SimpleBindings {
-        private SearchLookup lookup;
-        private Map<String, Object> vars;
-        private int numberOfObjectsNotWrappedYet;
-        LazyBindings(SearchLookup lookup, Map<String, Object> vars) {
-            super();
-            this.lookup = lookup;
-            this.vars = vars;
-            this.numberOfObjectsNotWrappedYet = (lookup != null ? lookup.asMap().size() : 0) +
-                                                (vars != null ? vars.size() : 0);
-        }
-        @Override
-        public Object get(Object key) {
-            Object value = super.get(key);
-            if (value != null || numberOfObjectsNotWrappedYet == 0) {
-                return value;
-            }
-            if (vars != null) {
-                value = vars.get(key);
-                if (value != null) {
-                    value = NashornScriptValueConverter.wrapValue(value);
-                    super.put((String) key, value);
-                    numberOfObjectsNotWrappedYet--;
-                    return value;
-                }
-            }
-            if (lookup != null) {
-                value = lookup.asMap().get(key);
-                if (value != null) {
-                    value = NashornScriptValueConverter.wrapValue(value);
-                    super.put((String) key, value);
-                    numberOfObjectsNotWrappedYet--;
-                    return value;
-                }
-            }
-            return null;
-        }
-        @Override
-        public boolean containsKey(Object key) {
-            if (super.containsKey(key)) {
-                return true;
-            }
-            if (vars != null && vars.containsKey(key)) {
-                return true;
-            }
-            if (lookup != null && lookup.asMap().containsKey(key)) {
-                return true;
-            }
-            return false;
-        }
-        @Override
-        public boolean isEmpty() {
-            if (numberOfObjectsNotWrappedYet == 0) {
-                return super.isEmpty();
-            }
-            return (lookup == null || lookup.asMap().isEmpty()) &&
-                (vars == null || vars.isEmpty()) && super.isEmpty();
-        }
-        @Override
-        public Set<String> keySet() {
-            if (numberOfObjectsNotWrappedYet == 0) {
-                return super.keySet();
-            }
-            HashSet<String> res = new HashSet<String>(super.keySet());
-            if (vars != null) {
-                res.addAll(vars.keySet());
-            }
-            if (lookup != null) {
-                res.addAll(lookup.asMap().keySet());
-            }
-            return res;
-        }
-        @Override
-        public int size() {
-            return super.size() + numberOfObjectsNotWrappedYet;
-        }
-        @Override
-        public Set<Map.Entry<String,Object>> entrySet() {
-            wrapRemaining();
-            return super.entrySet();
-        }
-        @Override
-        public boolean containsValue(Object value) {
-            wrapRemaining();
-            return super.containsValue(value);
-        };
-        @Override
-        public Collection<Object> values() {
-            wrapRemaining();
-            return super.values();
-        };
-        /**
-         * Wrap the objects in lookup and vars that have not been wrapped yet.
-         * <p>
-         * Required to support all of Map's methods but tests show that it is not called.
-         * </p>
-         */
-        private void wrapRemaining() {
-            if (numberOfObjectsNotWrappedYet == 0) {
-                return; // done
-            }
-            numberOfObjectsNotWrappedYet = 0;
-            if (lookup != null) {
-                for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
-                    if (!super.containsKey(entry.getKey())) {
-                        super.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
-                    }
-                }
-            }
-            if (vars != null) {
-                for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                    if (!super.containsKey(entry.getKey())) {
-                        super.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
-                    }
-                }
-            }
-        }
-    }
+    private ScriptContext createContext(SearchLookup lookup, Map<String, Object> vars) {
+        Bindings bindings = createBindings(lookup, vars);
 
-    private ScriptContext createContextWithVars(SearchLookup lookup, Map<String, Object> vars) {
-        ScriptContext newContext = new SimpleScriptContext();
-        if (lookup == null && vars == null) {
-            return newContext;
-        }
-        newContext.setBindings(new LazyBindings(lookup, vars), ScriptContext.ENGINE_SCOPE);
+        ScriptContext newContext = new SilentScriptContext();
+        newContext.setBindings(defaultContextBindings, ScriptContext.ENGINE_SCOPE);
+        newContext.setBindings(bindings, ScriptContext.GLOBAL_SCOPE);
         return newContext;
+    }
+    
+    private Bindings createBindings(SearchLookup lookup, Map<String, Object> vars) {
+        Bindings bindings = nashorn.createBindings();
+        if (lookup != null) {
+            for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
+                bindings.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
+            }
+        }
+        if (vars != null) {
+            for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                bindings.put(entry.getKey(), NashornScriptValueConverter.wrapValue(entry.getValue()));
+            }
+        }
+        return bindings;
     }
 
     @Override
     public Object execute(Object compiledScript, Map<String, Object> vars) {
         try {
-            ScriptContext context = createContextWithVars(null, vars);
+            ScriptContext context = createContext(null, vars);
             return NashornScriptValueConverter.unwrapValue(((CompiledScript) compiledScript).eval(context));
         } catch (ScriptException e) {
             e.printStackTrace();
@@ -330,25 +239,26 @@ public class JavascriptNashornScriptEngineService extends AbstractComponent
     @Override
     public SearchScript search(Object compiledScript, SearchLookup lookup,
             @Nullable Map<String, Object> vars) {
-        ScriptContext context = createContextWithVars(lookup, vars);
+        ScriptContext context = createContext(lookup, vars);
         return new NashornSearchScript((CompiledScript) compiledScript, context, lookup);
     }
 
     public static class NashornExecutableScript implements ExecutableScript {
 
         private final CompiledScript script;
-
         private final ScriptContext context;
+        final Bindings bindings;
         
         public NashornExecutableScript(CompiledScript script, ScriptContext context) {
             this.script = script;
             this.context = context;
+            this.bindings = context.getBindings(ScriptContext.GLOBAL_SCOPE);
         }
 
         @Override
         public Object run() {
             try {
-                return this.unwrap(script.eval(this.context));
+                return unwrap(script.eval(context));
             } catch (ScriptException e) {
                 e.printStackTrace();
                 return null;
@@ -357,7 +267,7 @@ public class JavascriptNashornScriptEngineService extends AbstractComponent
 
         @Override
         public void setNextVar(String name, Object value) {
-            this.context.getBindings(ScriptContext.ENGINE_SCOPE).put(name, value);
+            this.bindings.put(name, value);
         }
 
         @Override
@@ -366,34 +276,15 @@ public class JavascriptNashornScriptEngineService extends AbstractComponent
         }
     }
 
-    public static class NashornSearchScript implements SearchScript {
-        private final CompiledScript script;
-
-        private final ScriptContext context;
+    public static class NashornSearchScript extends NashornExecutableScript implements SearchScript {
 
         private final SearchLookup lookup;
         
         public NashornSearchScript(CompiledScript script, ScriptContext context, SearchLookup lookup) {
-            this.script = script;
-            this.context = context;
+            super(script, context);
             this.lookup = lookup;
         }
         
-        @Override
-        public Object run() {
-            try {
-                return this.unwrap(script.eval(this.context));
-            } catch (ScriptException e) {
-                e.printStackTrace();
-                return null;
-            }
-        }
-
-        @Override
-        public Object unwrap(Object value) {
-            return NashornScriptValueConverter.unwrapValue(value);
-        }
-
         @Override
         public void setNextReader(AtomicReaderContext reader) {
             lookup.setNextReader(reader);
@@ -416,12 +307,7 @@ public class JavascriptNashornScriptEngineService extends AbstractComponent
 
         @Override
         public void setNextScore(float score) {
-            this.context.getBindings(ScriptContext.ENGINE_SCOPE).put("_score", score);
-        }
-
-        @Override
-        public void setNextVar(String name, Object value) {
-            this.context.getBindings(ScriptContext.ENGINE_SCOPE).put(name, value);
+            this.bindings.put("_score", score);
         }
 
         @Override

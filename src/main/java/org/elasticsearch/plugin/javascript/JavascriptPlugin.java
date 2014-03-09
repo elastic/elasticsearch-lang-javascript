@@ -66,13 +66,13 @@ public class JavascriptPlugin extends AbstractPlugin {
         String javascriptEngine = settings.get(SCRIPT_JAVASCRIPT_ENGINE, AUTO);
         String engineClassname = null;
         if (javascriptEngine == null || AUTO.equalsIgnoreCase(javascriptEngine)) {
-            if (isJDK8()) {
+            if (isNashornAvailable()) {
                 engineClassname = NASHORN_SERVICE_CLASS;
             } else {
                 engineClassname = RHINO_SERVICE_CLASS;
             }
         } else if (NASHORN.equalsIgnoreCase(javascriptEngine)) {
-            if (!isJDK8()) {
+            if (!isNashornAvailable()) {
                 throw new SettingsException("Javascript engine - Nashorn - specified by " + SCRIPT_JAVASCRIPT_ENGINE + " requires JDK8.");
             };
             engineClassname = NASHORN_SERVICE_CLASS;
@@ -90,7 +90,13 @@ public class JavascriptPlugin extends AbstractPlugin {
         module.addScriptEngine(engineClass);
     }
 
-    private boolean isJDK8() {
-        return Double.parseDouble(System.getProperty("java.version").substring(0, System.getProperty("java.version").lastIndexOf("."))) >= 1.8;
+    private boolean isNashornAvailable() {
+        boolean nashornAvailable = false;
+        try {
+        	JavascriptPlugin.class.getClassLoader().loadClass("jdk.nashorn.internal.runtime.ScriptObject");
+        	nashornAvailable = true;
+        } catch(Throwable t) {
+        }
+        return nashornAvailable;
     }
 }
