@@ -84,7 +84,7 @@ public class JavascriptNashornScriptMultiThreadedTest extends ElasticsearchTestC
 
     @Test
     public void testExecutableWithRuntimeParams() throws Exception {
-        final JavascriptRhinoScriptEngineService se = new JavascriptRhinoScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final JavascriptNashornScriptEngineService se = new JavascriptNashornScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -127,7 +127,7 @@ public class JavascriptNashornScriptMultiThreadedTest extends ElasticsearchTestC
 
     @Test
     public void testExecute() throws Exception {
-        final JavascriptRhinoScriptEngineService se = new JavascriptRhinoScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        final JavascriptNashornScriptEngineService se = new JavascriptNashornScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile("x + y");
         final AtomicBoolean failed = new AtomicBoolean();
 
