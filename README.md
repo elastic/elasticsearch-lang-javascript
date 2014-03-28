@@ -12,10 +12,12 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |   JavaScript Lang Plugin    |    elasticsearch    |  rhino   | Release date |
 |-----------------------------|---------------------|----------|:------------:|
+| 2.1.1-SNAPSHOT              | 1.1.0 -> 1.1        |  1.7R4   |  XXXX-XX-XX  |
 | 2.1.0                       | 1.1.0 -> 1.1        |  1.7R4   |  2014-03-28  |
 
 Please read documentation relative to the version you are using:
 
+* [2.1.1-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-lang-javascript/blob/es-1.1/README.md)
 * [2.1.0](https://github.com/elasticsearch/elasticsearch-lang-javascript/blob/v2.1.0/README.md)
 
 Using javascript with function_score
