@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
@@ -69,6 +70,11 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
+        // Nothing to do here
     }
 
     @Override
