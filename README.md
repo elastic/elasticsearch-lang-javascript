@@ -3,7 +3,7 @@ JavaScript lang Plugin for Elasticsearch
 
 The JavaScript language plugin allows to have `javascript` (or `js`) as the language of scripts to execute.
 
-## Version 2.3.1 for Elasticsearch: 1.3
+## Version 2.3.2-SNAPSHOT for Elasticsearch: 1.3
 
 If you are looking for another version documentation, please refer to the 
 [compatibility matrix](http://github.com/elasticsearch/elasticsearch-lang-javascript#javascript-lang-plugin-for-elasticsearch).
