@@ -32,6 +32,7 @@ import java.util.List;
  */
 public class NativeList extends NativeJavaObject implements Scriptable, Wrapper {
     private static final long serialVersionUID = 3664761893203964569L;
+    private static final String LENGTH_PROPERTY = "length";
 
     private final List<Object> list;
 
@@ -66,7 +67,7 @@ public class NativeList extends NativeJavaObject implements Scriptable, Wrapper 
      */
 
     public Object get(String name, Scriptable start) {
-        if ("length".equals(name)) {
+        if (LENGTH_PROPERTY.equals(name)) {
             return list.size();
         } else {
             return super.get(name, start);
@@ -89,7 +90,7 @@ public class NativeList extends NativeJavaObject implements Scriptable, Wrapper 
      */
 
     public boolean has(String name, Scriptable start) {
-        return super.has(name, start) || "lenngth".equals(name);
+        return super.has(name, start) || LENGTH_PROPERTY.equals(name);
     }
 
     /* (non-Javadoc)
