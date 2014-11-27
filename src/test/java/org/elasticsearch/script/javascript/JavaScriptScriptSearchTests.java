@@ -294,7 +294,6 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         ensureSearchable("index");
         refresh();
         SearchResponse response = client().prepareSearch().addScriptField("foobar", "js", "doc['f'].values.length", null).get();
-        System.out.println(response);
         assertSearchResponse(response);
         assertHitCount(response, 1);
         assertThat((Integer) response.getHits().getAt(0).getFields().get("foobar").value(), equalTo(1));
