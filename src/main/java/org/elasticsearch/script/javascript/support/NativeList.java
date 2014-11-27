@@ -19,29 +19,29 @@
 
 package org.elasticsearch.script.javascript.support;
 
+import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.Wrapper;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
  *
  */
-public class NativeList implements Scriptable, Wrapper {
+public class NativeList extends NativeJavaObject implements Scriptable, Wrapper {
     private static final long serialVersionUID = 3664761893203964569L;
 
-    private List<Object> list;
-    private Scriptable parentScope;
-    private Scriptable prototype;
+    private final List<Object> list;
 
 
-    public static NativeList wrap(Scriptable scope, List<Object> list) {
-        return new NativeList(scope, list);
+    public static NativeList wrap(Scriptable scope, List<Object> list, Class<?> staticType) {
+        return new NativeList(scope, list, staticType);
     }
 
-    public NativeList(Scriptable scope, List<Object> list) {
-        this.parentScope = scope;
+    private NativeList(Scriptable scope, List<Object> list, Class<?> staticType) {
+        super(scope, list, staticType);
         this.list = list;
     }
 
@@ -69,7 +69,7 @@ public class NativeList implements Scriptable, Wrapper {
         if ("length".equals(name)) {
             return list.size();
         } else {
-            return Undefined.instance;
+            return super.get(name, start);
         }
     }
 
@@ -78,7 +78,7 @@ public class NativeList implements Scriptable, Wrapper {
      */
 
     public Object get(int index, Scriptable start) {
-        if (index < 0 || index >= list.size()) {
+        if (has(index, start) == false) {
             return Undefined.instance;
         }
         return list.get(index);
@@ -89,10 +89,7 @@ public class NativeList implements Scriptable, Wrapper {
      */
 
     public boolean has(String name, Scriptable start) {
-        if ("length".equals(name)) {
-            return true;
-        }
-        return false;
+        return super.has(name, start) || "lenngth".equals(name);
     }
 
     /* (non-Javadoc)
@@ -101,15 +98,6 @@ public class NativeList implements Scriptable, Wrapper {
 
     public boolean has(int index, Scriptable start) {
         return index >= 0 && index < list.size();
-    }
-
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#put(java.lang.String, org.mozilla.javascript.Scriptable, java.lang.Object)
-     */
-
-    @SuppressWarnings("unchecked")
-    public void put(String name, Scriptable start, Object value) {
-        // do nothing here...
     }
 
     /* (non-Javadoc)
@@ -125,14 +113,6 @@ public class NativeList implements Scriptable, Wrapper {
     }
 
     /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#delete(java.lang.String)
-     */
-
-    public void delete(String name) {
-        // nothing here
-    }
-
-    /* (non-Javadoc)
      * @see org.mozilla.javascript.Scriptable#delete(int)
      */
 
@@ -141,56 +121,17 @@ public class NativeList implements Scriptable, Wrapper {
     }
 
     /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#getPrototype()
-     */
-
-    public Scriptable getPrototype() {
-        return this.prototype;
-    }
-
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#setPrototype(org.mozilla.javascript.Scriptable)
-     */
-
-    public void setPrototype(Scriptable prototype) {
-        this.prototype = prototype;
-    }
-
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#getParentScope()
-     */
-
-    public Scriptable getParentScope() {
-        return this.parentScope;
-    }
-
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#setParentScope(org.mozilla.javascript.Scriptable)
-     */
-
-    public void setParentScope(Scriptable parent) {
-        this.parentScope = parent;
-    }
-
-    /* (non-Javadoc)
      * @see org.mozilla.javascript.Scriptable#getIds()
      */
 
     public Object[] getIds() {
-        int size = list.size();
-        Object[] ids = new Object[size];
+        final Object[] javaObjectIds = super.getIds();
+        final int size = list.size();
+        final Object[] ids = Arrays.copyOf(javaObjectIds, javaObjectIds.length + size);
         for (int i = 0; i < size; ++i) {
-            ids[i] = i;
+            ids[javaObjectIds.length + i] = i;
         }
         return ids;
-    }
-
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#getDefaultValue(java.lang.Class)
-     */
-
-    public Object getDefaultValue(Class hint) {
-        return null;
     }
 
     /* (non-Javadoc)
