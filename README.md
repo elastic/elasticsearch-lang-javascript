@@ -1,21 +1,13 @@
-**IMPORTANT**: this project now moved to [elasticsearch repository](https://github.com/elastic/elasticsearch/tree/master/plugins/lang-javascript).
+**IMPORTANT: Project MOVED!**
 
-Only important bug fixes will be merged here. If you have a question about the plugin, please use [discuss.elastic.co](https://discuss.elastic.co/c/elasticsearch). If you want to report a bug, please use [elasticsearch repository](https://github.com/elastic/elasticsearch/issues/new).
+From elasticsearch 2.0 you need to look at the following links:
 
----
+* [Source code](https://github.com/elastic/elasticsearch/tree/master/plugins/).
+* [Documentation](https://www.elastic.co/guide/en/elasticsearch/plugins/current/index.html).
+* [Question? Bugs?](https://discuss.elastic.co/c/elasticsearch)
 
-JavaScript lang Plugin for Elasticsearch
-==================================
+For older versions, look at the following table:
 
-The JavaScript language plugin allows to have `javascript` (or `js`) as the language of scripts to execute.
-
-In order to install the plugin, simply run:
-
-```sh
-bin/plugin install elasticsearch/elasticsearch-lang-javascript/2.7.0
-```
-
-You need to install a version matching your Elasticsearch version:
 
 | elasticsearch |   JavaScript Plugin   |   Docs     |
 |---------------|-----------------------|------------|
@@ -29,139 +21,6 @@ You need to install a version matching your Elasticsearch version:
 | es-1.1        |  2.1.0                | [2.1.0](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/v2.1.0/#javascript-lang-plugin-for-elasticsearch)  |
 | es-1.0        |  2.0.0                | [2.0.0](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/v2.0.0/#javascript-lang-plugin-for-elasticsearch)  |
 | es-0.90       |  1.4.0                | [1.4.0](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/v1.4.0/#javascript-lang-plugin-for-elasticsearch)  |
-
-To build a `SNAPSHOT` version, you need to build it with Maven:
-
-```bash
-mvn clean install
-plugin --install lang-javascript \
-       --url file:target/releases/elasticsearch-lang-javascript-X.X.X-SNAPSHOT.zip
-```
-
-
-Using javascript with function_score
-------------------------------------
-
-Let's say you want to use `function_score` API using `javascript`. Here is
-a way of doing it:
-
-```sh
-curl -XDELETE "http://localhost:9200/test"
-
-curl -XPUT "http://localhost:9200/test/doc/1" -d '{
-  "num": 1.0
-}'
-
-curl -XPUT "http://localhost:9200/test/doc/2?refresh" -d '{
-  "num": 2.0
-}'
-
-curl -XGET "http://localhost:9200/test/_search?pretty" -d '
-{
-  "query": {
-    "function_score": {
-      "script_score": {
-        "script": "doc[\"num\"].value",
-        "lang": "javascript"
-      }
-    }
-  }
-}'
-```
-
-gives
-
-```javascript
-{
-   // ...
-   "hits": {
-      "total": 2,
-      "max_score": 4,
-      "hits": [
-         {
-            // ...
-            "_score": 4
-         },
-         {
-            // ...
-            "_score": 1
-         }
-      ]
-   }
-}
-```
-
-Using javascript with script_fields
------------------------------------
-
-```sh
-curl -XDELETE "http://localhost:9200/test"
-
-curl -XPUT "http://localhost:9200/test/doc/1?refresh" -d'
-{
-  "obj1": {
-   "test": "something"
-  },
-  "obj2": {
-    "arr2": [ "arr_value1", "arr_value2" ]
-  }
-}'
-
-curl -XGET "http://localhost:9200/test/_search" -d'
-{
-  "script_fields": {
-    "s_obj1": {
-      "script": "_source.obj1", "lang": "js"
-    },
-    "s_obj1_test": {
-      "script": "_source.obj1.test", "lang": "js"
-    },
-    "s_obj2": {
-      "script": "_source.obj2", "lang": "js"
-    },
-    "s_obj2_arr2": {
-      "script": "_source.obj2.arr2", "lang": "js"
-    }
-  }
-}'
-```
-
-gives
-
-```javascript
-{
-  // ...
-  "hits": [
-     {
-        // ...
-        "fields": {
-           "s_obj2_arr2": [
-              [
-                 "arr_value1",
-                 "arr_value2"
-              ]
-           ],
-           "s_obj1_test": [
-              "something"
-           ],
-           "s_obj2": [
-              {
-                 "arr2": [
-                    "arr_value1",
-                    "arr_value2"
-                 ]
-              }
-           ],
-           "s_obj1": [
-              {
-                 "test": "something"
-              }
-           ]
-        }
-     }
-  ]
-}
-```
 
 
 License
